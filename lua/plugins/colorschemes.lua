@@ -1,3 +1,4 @@
+-- Colorschemes: Theme configuration
 return {
   {
     "catppuccin/nvim",
@@ -6,14 +7,15 @@ return {
     lazy = false,
     opts = {
       flavour = "mocha", -- latte (light), frappe, macchiato, mocha (darkest)
+      transparent_background = true,
       integrations = {
         blink_cmp = true,
         gitsigns = true,
-        neotree = true,
         treesitter = true,
         mason = true,
         native_lsp = { enabled = true },
-        which_key = false,
+        snacks = true,
+        which_key = true,
       },
     },
     config = function(_, opts)
