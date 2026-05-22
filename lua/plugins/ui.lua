@@ -1,54 +1,231 @@
+-- UI: Which-key, diagnostics display, notifications, and visual enhancements
 return {
-  -- Icons used by lualine, bufferline, neo-tree, fzf-lua, trouble, etc.
   { "nvim-tree/nvim-web-devicons", lazy = true },
-
-  -- Tab-style buffer line at the top
+  -- ════════════════════════════════════════════════════════════════════════════
+  -- Which-key (keybinding help)
+  -- ════════════════════════════════════════════════════════════════════════════
   {
-    "akinsho/bufferline.nvim",
+    "folke/which-key.nvim",
     event = "VeryLazy",
-    dependencies = "nvim-tree/nvim-web-devicons",
-    keys = {
-      { "<leader>bp", "<cmd>BufferLineTogglePin<cr>", desc = "Pin buffer" },
-      { "<leader>bP", "<cmd>BufferLineGroupClose ungrouped<cr>", desc = "Delete non-pinned buffers" },
-      { "[b", "<cmd>BufferLineCyclePrev<cr>", desc = "Prev buffer" },
-      { "]b", "<cmd>BufferLineCycleNext<cr>", desc = "Next buffer" },
-    },
     opts = {
-      options = {
-        diagnostics = "nvim_lsp",
-        always_show_bufferline = false,
-        offsets = {
-          {
-            filetype = "neo-tree",
-            text = "File Explorer",
-            highlight = "Directory",
-            text_align = "left",
-          },
-        },
+      preset = "helix",
+      delay = 250,
+      sort = { "alphanum", "local", "order", "group", "mod" },
+      icons = {
+        mappings = false,
+        rules = false,
+        breadcrumb = "»",
+        separator = "→",
+        group = "+",
       },
+      plugins = {
+        marks = true,
+        registers = true,
+        spelling = { enabled = false },
+      },
+      win = {
+        border = "rounded",
+        padding = { 1, 2 },
+      },
+      spec = {
+        mode = { "n", "v" },
+        -- Top-level quick access
+        { "<leader><space>", desc = "Find Files" },
+        { "<leader>/", desc = "Grep" },
+        { "<leader>,", desc = "Buffers" },
+        { "<leader>.", desc = "Scratch" },
+        { "<leader>e", desc = "Explorer" },
+        { "<leader>q", desc = "Quit" },
+        { "<leader>Q", desc = "Quit All" },
+        -- Main groups
+        { "<leader>b", group = "Buffers" },
+        { "<leader>c", group = "Code" },
+        { "<leader>d", group = "Diagnostics" },
+        { "<leader>f", group = "Files" },
+        { "<leader>g", group = "Git" },
+        { "<leader>gh", group = "Hunks" },
+        { "<leader>l", group = "LSP" },
+        { "<leader>m", group = "Markdown" },
+        { "<leader>n", group = "Notifications" },
+        { "<leader>s", group = "Search" },
+        { "<leader>u", group = "UI/Toggle" },
+        { "<leader>w", group = "Windows" },
+        -- Navigation groups
+        { "[", group = "Prev" },
+        { "]", group = "Next" },
+        { "g", group = "Goto" },
+        -- Surround (mini.surround)
+        { "gs", group = "Surround" },
+      },
+    },
+    keys = {
+      { "<leader>?", function() require("which-key").show({ global = false }) end, desc = "Buffer Keymaps" },
+      { "<leader>K", function() require("which-key").show({ global = true }) end, desc = "All Keymaps" },
     },
   },
 
-  -- Status line at the bottom
+  -- ════════════════════════════════════════════════════════════════════════════
+  -- Inline diagnostics (prettier diagnostic display)
+  -- ════════════════════════════════════════════════════════════════════════════
   {
-    "nvim-lualine/lualine.nvim",
+    "rachartier/tiny-inline-diagnostic.nvim",
     event = "VeryLazy",
-    dependencies = "nvim-tree/nvim-web-devicons",
+    priority = 1000,
+    config = function()
+      require("tiny-inline-diagnostic").setup({
+        preset = "classic",
+        transparent_bg = false,
+        transparent_cursorline = false,
+        hi = {
+          error = "DiagnosticError",
+          warn = "DiagnosticWarn",
+          info = "DiagnosticInfo",
+          hint = "DiagnosticHint",
+          arrow = "NonText",
+          background = "CursorLine",
+          mixing_color = "None",
+        },
+        options = {
+          show_source = { enabled = false, if_many = false },
+          use_icons_from_diagnostic = false,
+          set_arrow_to_diag_color = false,
+          add_messages = true,
+          throttle = 20,
+          softwrap = 30,
+          multilines = { enabled = false, always_show = false },
+          show_all_diags_on_cursorline = false,
+          enable_on_insert = false,
+          enable_on_select = false,
+          overflow = { mode = "wrap", padding = 0 },
+          break_line = { enabled = false, after = 30 },
+          format = nil,
+          virt_texts = { priority = 2048 },
+          severity = {
+            vim.diagnostic.severity.ERROR,
+            vim.diagnostic.severity.WARN,
+            vim.diagnostic.severity.INFO,
+            vim.diagnostic.severity.HINT,
+          },
+          overwrite_events = nil,
+        },
+        disabled_ft = {},
+      })
+      vim.diagnostic.config({ virtual_text = false })
+    end,
+  },
+
+  -- ════════════════════════════════════════════════════════════════════════════
+  -- Markdown Preview (browser-based with mermaid support)
+  -- ════════════════════════════════════════════════════════════════════════════
+  {
+    "iamcco/markdown-preview.nvim",
+    cmd = { "MarkdownPreviewToggle", "MarkdownPreview", "MarkdownPreviewStop" },
+    ft = { "markdown" },
+    build = "cd app && npm install",
+    init = function()
+      vim.g.mkdp_filetypes = { "markdown" }
+      vim.g.mkdp_auto_close = 1
+      vim.g.mkdp_theme = "dark"
+      -- Enable mermaid, katex, and other features
+      vim.g.mkdp_preview_options = {
+        mermaid = { theme = "dark" },
+        katex = {},
+        disable_sync_scroll = 0,
+        sync_scroll_type = "middle",
+        hide_yaml_meta = 1,
+        sequence_diagrams = {},
+        flowchart_diagrams = {},
+      }
+    end,
+    keys = {
+      { "<leader>mp", "<cmd>MarkdownPreviewToggle<cr>", desc = "Markdown Preview", ft = "markdown" },
+    },
+  },
+
+  -- ════════════════════════════════════════════════════════════════════════════
+  -- Render Markdown (in-buffer rendering)
+  -- ════════════════════════════════════════════════════════════════════════════
+  {
+    "MeanderingProgrammer/render-markdown.nvim",
+    ft = { "markdown" },
+    dependencies = { "nvim-treesitter/nvim-treesitter", "echasnovski/mini.icons" },
     opts = {
-      options = {
-        theme = "catppuccin",
-        globalstatus = true, -- one status line for all windows
-        component_separators = { left = "", right = "" },
-        section_separators = { left = "", right = "" },
+      heading = {
+        enabled = true,
+        sign = false,
+        icons = { "# ", "## ", "### ", "#### ", "##### ", "###### " },
       },
-      sections = {
-        lualine_a = { "mode" },
-        lualine_b = { "branch", "diff", "diagnostics" },
-        lualine_c = { { "filename", path = 1 } }, -- 1 = relative path
-        lualine_x = { "filetype" },
-        lualine_y = { "progress" },
-        lualine_z = { "location" },
+      code = {
+        enabled = true,
+        sign = false,
+        style = "full",
+        left_pad = 1,
+        right_pad = 1,
+        border = "thin",
+        language_pad = 1,
       },
+      bullet = {
+        enabled = true,
+        icons = { "●", "○", "◆", "◇" },
+      },
+      checkbox = {
+        enabled = true,
+        unchecked = { icon = "☐ " },
+        checked = { icon = "☑ " },
+      },
+      quote = { enabled = true, icon = "▎" },
+      pipe_table = { enabled = true, style = "full" },
+      callout = {
+        note = { raw = "[!NOTE]", rendered = " Note", highlight = "RenderMarkdownInfo" },
+        tip = { raw = "[!TIP]", rendered = " Tip", highlight = "RenderMarkdownSuccess" },
+        important = { raw = "[!IMPORTANT]", rendered = " Important", highlight = "RenderMarkdownHint" },
+        warning = { raw = "[!WARNING]", rendered = " Warning", highlight = "RenderMarkdownWarn" },
+        caution = { raw = "[!CAUTION]", rendered = " Caution", highlight = "RenderMarkdownError" },
+      },
+    },
+    keys = {
+      { "<leader>mr", "<cmd>RenderMarkdown toggle<cr>", desc = "Render Markdown Toggle", ft = "markdown" },
+    },
+  },
+
+  -- ════════════════════════════════════════════════════════════════════════════
+  -- Trouble (better diagnostics list)
+  -- ════════════════════════════════════════════════════════════════════════════
+  {
+    "folke/trouble.nvim",
+    cmd = "Trouble",
+    opts = {
+      win = {
+        type = "split",
+        position = "bottom",
+        size = 15,
+      },
+    },
+    lazy = true,
+    specs = {
+      "folke/snacks.nvim",
+      opts = function(_, opts)
+        return vim.tbl_deep_extend("force", opts or {}, {
+          picker = {
+            actions = require("trouble.sources.snacks").actions,
+            win = {
+              input = {
+                keys = {
+                  ["<c-t>"] = { "trouble_open", mode = { "n", "i" } },
+                },
+              },
+            },
+          },
+        })
+      end,
+    },
+    keys = {
+      { "<leader>dt", "<cmd>Trouble diagnostics toggle<cr>", desc = "Trouble (workspace)" },
+      { "<leader>dT", "<cmd>Trouble diagnostics toggle filter.buf=0<cr>", desc = "Trouble (buffer)" },
+      { "<leader>dL", "<cmd>Trouble loclist toggle<cr>", desc = "Location List" },
+      { "<leader>dQ", "<cmd>Trouble qflist toggle<cr>", desc = "Quickfix List" },
+      { "<leader>lt", "<cmd>Trouble lsp toggle focus=false win.position=right<cr>", desc = "LSP References (Trouble)" },
+      { "<leader>lT", "<cmd>Trouble symbols toggle focus=false<cr>", desc = "Symbols (Trouble)" },
     },
   },
 }

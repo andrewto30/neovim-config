@@ -1,315 +1,525 @@
-# Neovim Config
+# Neovim Configuration
 
-Personal Neovim configuration. Minimal, efficient, portable. Built for Go and Python development.
-
-## What's Included
-
-- **Plugin manager:** [lazy.nvim](https://github.com/folke/lazy.nvim)
-- **Colorscheme:** [catppuccin](https://github.com/catppuccin/nvim) (mocha flavour)
-- **UI:** [bufferline](https://github.com/akinsho/bufferline.nvim), [lualine](https://github.com/nvim-lualine/lualine.nvim)
-- **LSP:** [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) + [mason](https://github.com/mason-org/mason.nvim)
-- **Syntax:** [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter)
-- **Completion:** [blink.cmp](https://github.com/Saghen/blink.cmp)
-- **Formatting:** [conform.nvim](https://github.com/stevearc/conform.nvim)
-- **Fuzzy finder:** [fzf-lua](https://github.com/ibhagwan/fzf-lua)
-- **File explorer:** [neo-tree](https://github.com/nvim-neo-tree/neo-tree.nvim)
-- **Git:** [gitsigns.nvim](https://github.com/lewis6991/gitsigns.nvim)
-- **Diagnostics panel:** [trouble.nvim](https://github.com/folke/trouble.nvim)
-- **TODO comments:** [todo-comments.nvim](https://github.com/folke/todo-comments.nvim)
+A minimal, fast Neovim configuration for **Neovim 0.12+** — lazy-loaded plugins,
+native LSP (0.12 API), Treesitter highlighting, and a single transparent
+Catppuccin Mocha theme.
 
 ---
 
-## Setup on a Fresh Mac
+## Porting to a New System
 
-Assumes you only have the Neovim binary installed. Run these in order.
+Follow these steps in order to get this config running on a fresh machine.
 
-### 1. Install system dependencies via Homebrew
-
-If you don't have Homebrew yet:
+### 1. Prerequisites
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+# Core (required)
+brew install neovim      # v0.12+ required
+brew install git
+brew install ripgrep     # used by the picker (grep)
+brew install fd          # used by the picker (file find)
+brew install lazygit     # git TUI (<leader>gg)
+brew install node        # provides node + npm
 ```
 
-Then install everything:
+### 2. Treesitter CLI — IMPORTANT
+
+Treesitter parsers are compiled on first launch and this **requires the
+`tree-sitter` CLI**. Note the gotcha:
+
+> `brew install tree-sitter` installs only the *library*, **not** the CLI
+> binary. Install the CLI from npm instead:
 
 ```bash
-# Xcode Command Line Tools (for the C compiler that treesitter parsers need)
-xcode-select --install
+npm install -g tree-sitter-cli
+```
 
-# Core tools used by the config
-brew install git ripgrep fd
+Verify it is on your `PATH`:
 
-# Languages
-brew install go python
+```bash
+tree-sitter --version
+```
 
-# A Nerd Font (required for icons in bufferline, lualine, neo-tree, etc.)
+Without this, no language gets syntax colors (the config will still load, but
+files render as plain text). `lua/core/lazy.lua` attempts a `cargo`-based
+fallback install, but npm is the reliable path.
+
+### 3. Nerd Font
+
+Install a [Nerd Font](https://www.nerdfonts.com/) for icons and set your
+terminal to use it:
+
+```bash
 brew install --cask font-jetbrains-mono-nerd-font
 ```
 
-After installing the Nerd Font, set your terminal (iTerm2, Ghostty, Wezterm, Terminal.app, etc.) to use **JetBrainsMono Nerd Font**. Otherwise icons render as tofu boxes (□).
-
-### 2. Clone this repo into Neovim's config directory
+### 4. Clone the Config
 
 ```bash
-git clone <this-repo-url> ~/.config/nvim
+# Back up any existing config first (optional but recommended)
+mv ~/.config/nvim ~/.config/nvim.old 2>/dev/null
+
+git clone <your-repo-url> ~/.config/nvim
 ```
 
-If `~/.config/nvim` already exists with another config, back it up first:
-
-```bash
-mv ~/.config/nvim ~/.config/nvim.bak
-mv ~/.local/share/nvim ~/.local/share/nvim.bak    # plugin data
-mv ~/.local/state/nvim ~/.local/state/nvim.bak    # state/cache
-```
-
-### 3. First launch
+### 5. First Launch
 
 ```bash
 nvim
 ```
 
-What happens automatically:
+On first launch, in order:
+- `lazy.nvim` bootstraps itself and installs all plugins.
+- `mason` auto-installs every LSP server, linter, and formatter (see below).
+- Treesitter compiles its parsers (needs the CLI from step 2).
 
-1. `lazy.nvim` clones itself
-2. All plugins install
-3. `mason` installs LSP servers (`pyright`, `gopls`, `lua-language-server`) and formatters (`black`, `isort`, `gofumpt`, `goimports`, `stylua`)
-4. `treesitter` downloads and compiles parsers
+Then **restart Neovim once** so the freshly compiled Treesitter parsers load.
 
-You'll see progress windows. **Wait for it all to finish**, then quit (`:qa`) and **relaunch once** so treesitter parsers fully take effect.
+### 6. Language Toolchains (install what you use)
 
-### 4. Verify the install
+The LSP servers and language commands need the actual compilers/runtimes:
 
-Inside Neovim:
+```bash
+brew install go        # Go      — :GoInstallBinaries for extra tools
+brew install zig       # Zig
+brew install python    # Python
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh   # Rust
+```
+
+### 7. Verify
 
 ```vim
 :checkhealth
 ```
 
-Scroll through. Anything in red is broken; yellow warnings are usually fine. Common things to verify:
-
-- `lazy` reports all plugins loaded
-- `mason` finds all the tools you'd expect
-- `treesitter` shows parsers as installed
-- `vim.lsp` is healthy
-
-To test that LSP works, open a Go or Python file and:
-
-- Type some code → completion should pop up
-- Hover over an identifier and press `K` → docs should appear
-- Press `gd` on a symbol → should jump to definition
+Expected harmless warnings: which-key keymap overlaps, `luarocks` (no plugin
+needs it), optional toolchains you didn't install.
 
 ---
 
-## Updating
+## What Gets Auto-Installed
 
-```vim
-:Lazy sync       " update plugins
-:Mason           " UI for managing LSP servers / formatters; press U to update all
-:TSUpdate        " update treesitter parsers
-```
+### Plugins (via lazy.nvim)
 
-After pulling new changes from this repo, also run `:Lazy sync` so plugin specs get re-resolved.
+Completion (`blink.cmp`), Treesitter, `snacks.nvim` (picker / explorer /
+dashboard / terminal / notifications), `which-key`, `flash`, `mini.nvim`
+(ai / surround / pairs / statusline), `trouble`, `gitsigns` + `diffview` +
+`fugitive`, `conform` (format), `nvim-lint`, `mason`, `render-markdown`,
+`markdown-preview`, `catppuccin`.
+
+### LSP / Linters / Formatters (via Mason)
+
+| Category | Tools |
+|----------|-------|
+| **LSP Servers** | lua-language-server, gopls, bash-language-server, css-lsp, html-lsp, json-lsp, pyright, rust-analyzer, typescript-language-server, yaml-language-server, zls |
+| **Linters** | eslint_d, luacheck, golangci-lint, shellcheck, markdownlint, yamllint, jsonlint, htmlhint, stylelint, ruff, mypy |
+| **Formatters** | stylua, goimports, prettier, black, isort, shfmt |
+
+### Treesitter Parsers
+
+bash, c, css, go, gomod, gosum, gowork, html, javascript, json, latex, lua,
+luadoc, luap, markdown, markdown_inline, proto, python, query, regex, rust,
+scss, svelte, terraform, tsx, typescript, vim, vimdoc, vue, yaml, zig
 
 ---
 
-## Directory Layout
+## Structure
 
 ```
 ~/.config/nvim/
-├── init.lua                    -- entry point
+├── init.lua                 # Entry point
 ├── lua/
-│   ├── config/
-│   │   ├── options.lua         -- vim.opt settings (line numbers, indent, etc.)
-│   │   ├── keymaps.lua         -- non-plugin keybindings
-│   │   ├── autocmds.lua        -- autocommands (yank highlight, trim whitespace, etc.)
-│   │   └── lazy.lua            -- bootstraps lazy.nvim
+│   ├── core/
+│   │   ├── init.lua         # Loads all core modules
+│   │   ├── options.lua      # Neovim options + filetype detection
+│   │   ├── keymaps.lua      # Core keybindings
+│   │   ├── autocmds.lua     # Auto commands
+│   │   ├── lazy.lua         # Plugin manager bootstrap
+│   │   └── utils.lua        # Utility functions
 │   └── plugins/
-│       ├── colorscheme.lua     -- catppuccin
-│       ├── ui.lua              -- bufferline, lualine, devicons
-│       ├── editor.lua          -- fzf-lua, neo-tree, todo, trouble, gitsigns
-│       ├── treesitter.lua
-│       ├── lsp.lua             -- mason + nvim-lspconfig
-│       ├── completion.lua      -- blink.cmp
-│       └── formatting.lua      -- conform
-└── README.md
+│       ├── coding.lua       # Completion (blink.cmp), treesitter
+│       ├── colorschemes.lua # Catppuccin theme
+│       ├── editor.lua       # Flash, mini.nvim (incl. statusline), persistence
+│       ├── formatting.lua   # Conform.nvim (format on save)
+│       ├── git.lua          # Gitsigns, fugitive, diffview
+│       ├── linting.lua      # nvim-lint
+│       ├── lsp.lua          # Mason + LSP keymaps + diagnostic config
+│       ├── snacks.lua       # Picker, explorer, notifications, terminal
+│       └── ui.lua           # Which-key, trouble, markdown
+├── lsp/                     # Per-server configs (native vim.lsp.config API)
+│   ├── bashls.lua    cssls.lua   gopls.lua   html.lua
+│   ├── jsonls.lua    lua_ls.lua  pyright.lua rust_analyzer.lua
+│   └── ts_ls.lua     yamlls.lua  zls.lua
+├── ftplugin/
+│   ├── go.lua               # Go commands (:GoTest, :GoBuild, etc.)
+│   ├── rust.lua             # Rust commands (:CargoRun, :CargoTest, etc.)
+│   └── zig.lua              # Zig commands (:ZigBuild, :ZigTest, etc.)
+└── doc/
+    ├── go.txt               # :help go.txt
+    ├── rust.txt             # :help rust.txt
+    └── zig.txt              # :help zig.txt
 ```
 
-To add a plugin, drop a new file in `lua/plugins/`. To disable one, delete or rename it.
+LSP servers use Neovim 0.12's native `vim.lsp.config()` / `vim.lsp.enable()` —
+there is no `nvim-lspconfig`.
 
 ---
 
-## Keybinding Cheatsheet
+## Keybindings
 
-**Leader key is `<Space>`.** Notation: `<C-x>` = Ctrl+x, `<S-x>` = Shift+x, `<leader>` = Space.
+**Leader key:** `<Space>`
 
-### Find / Navigate (fzf-lua)
+### Essential (No Prefix)
 
-| Keys | Action |
-|---|---|
+| Key | Action |
+|-----|--------|
+| `<C-s>` | Save file |
+| `<C-h/j/k/l>` | Navigate windows |
+| `<C-Up/Down/Left/Right>` | Resize windows |
+| `<Esc>` | Clear search highlight |
+| `jj` / `jk` | Exit insert mode |
+| `H` / `L` | Start/End of line |
+| `<S-h>` / `<S-l>` | Prev/Next buffer |
+| `Q` | Delete buffer |
+| `K` | Hover documentation |
+| `s` | Flash jump |
+| `S` | Flash treesitter |
+
+### Quick Access (Leader)
+
+| Key | Action |
+|-----|--------|
 | `<leader><space>` | Find files |
-| `<leader>ff` | Find files |
-| `<leader>fg` or `<leader>/` | Grep across project |
-| `<leader>fb` | Switch buffer |
-| `<leader>fr` | Recent files |
-| `<leader>fh` | Search help docs |
-| `<leader>fk` | Search keymaps |
-| `<leader>fc` | Search commands |
-| `<leader>fd` | Search workspace diagnostics |
-| `<leader>fs` | Document symbols (current file) |
-| `<leader>fS` | Workspace symbols |
-| `<leader>ft` | Find TODO/FIXME comments |
+| `<leader>/` | Grep |
+| `<leader>,` | Switch buffer |
+| `<leader>.` | Scratch buffer |
+| `<leader>e` | File explorer |
+| `<leader>q` | Quit |
+| `<leader>Q` | Quit all |
+| `<leader>?` | Buffer keymaps |
+| `<leader>K` | All keymaps |
+| `<C-/>` | Terminal |
 
-### File Explorer (neo-tree)
+### Buffers (`<leader>b`)
 
-| Keys | Action |
-|---|---|
-| `<leader>e` | Toggle file explorer |
-| `<leader>E` | Open explorer at current file |
-
-Inside neo-tree: `a` add, `d` delete, `r` rename, `c` copy, `x` cut, `p` paste, `?` show all mappings.
-
-### Buffers
-
-| Keys | Action |
-|---|---|
-| `<S-l>` / `<S-h>` | Next / previous buffer |
-| `]b` / `[b` | Next / previous buffer (alternate) |
+| Key | Action |
+|-----|--------|
+| `<leader>bb` | Switch buffer |
 | `<leader>bd` | Delete buffer |
-| `<leader>bp` | Pin buffer |
-| `<leader>bP` | Delete all non-pinned buffers |
+| `<leader>bo` | Delete other buffers |
 
-### Windows / Splits
+### Code (`<leader>c`)
 
-| Keys | Action |
-|---|---|
-| `<leader>|` | Split vertically |
-| `<leader>-` | Split horizontally |
-| `<C-h/j/k/l>` | Move between splits |
-| `<C-Up/Down/Left/Right>` | Resize current split |
-
-### LSP (only active when an LSP attaches)
-
-| Keys | Action |
-|---|---|
-| `gd` | Go to definition |
-| `gD` | Go to declaration |
-| `gr` | Find references |
-| `gi` | Go to implementation |
-| `gy` | Go to type definition |
-| `K` | Show hover docs |
+| Key | Action |
+|-----|--------|
 | `<leader>ca` | Code action |
 | `<leader>cr` | Rename symbol |
-| `<leader>cd` | Show line diagnostics in float |
-| `<leader>cs` | Signature help |
-| `<leader>cf` | Format buffer (or selection in visual) |
-| `]d` / `[d` | Next / previous diagnostic |
+| `<leader>cd` | Line diagnostic |
+| `<leader>cf` | Format |
+| `<leader>cv` | Definition in vsplit |
 
-### Completion (blink.cmp, in insert mode)
+### Diagnostics (`<leader>d`)
 
-| Keys | Action |
-|---|---|
-| `<C-space>` | Trigger completion menu |
-| `<C-n>` / `<C-p>` | Next / previous item |
-| `<C-y>` | Accept completion |
-| `<C-e>` | Dismiss menu |
-| `<Tab>` / `<S-Tab>` | Jump between snippet placeholders |
+| Key | Action |
+|-----|--------|
+| `<leader>dd` | Workspace diagnostics |
+| `<leader>db` | Buffer diagnostics |
+| `<leader>dt` | Trouble (workspace) |
+| `<leader>dT` | Trouble (buffer) |
+| `<leader>dq` | Quickfix list |
+| `<leader>dl` | Location list |
 
-### Diagnostics & Trouble Panel
+### Files (`<leader>f`)
 
-| Keys | Action |
-|---|---|
-| `<leader>xx` | Diagnostics panel (workspace) |
-| `<leader>xX` | Diagnostics panel (current buffer) |
-| `<leader>xs` | Symbols panel |
-| `<leader>xl` | LSP refs/defs/impls panel |
-| `<leader>xL` | Location list |
-| `<leader>xQ` | Quickfix list |
-| `<leader>xt` | TODO comments panel |
+| Key | Action |
+|-----|--------|
+| `<leader>ff` | Find files |
+| `<leader>fr` | Recent files |
+| `<leader>fc` | Config files |
+| `<leader>fg` | Git files |
+| `<leader>fp` | Projects |
+| `<leader>fR` | Rename file |
 
-### Git (gitsigns, active in any file inside a git repo)
+### Git (`<leader>g`)
 
-| Keys | Action |
-|---|---|
-| `]h` / `[h` | Next / previous hunk |
-| `<leader>ghs` | Stage hunk (works in visual too) |
-| `<leader>ghr` | Reset hunk |
+| Key | Action |
+|-----|--------|
+| `<leader>gg` | Lazygit |
+| `<leader>gs` | Status |
+| `<leader>gl` | Log |
+| `<leader>gL` | Log (line) |
+| `<leader>gf` | Log (file) |
+| `<leader>gd` | Diff (picker) |
+| `<leader>gD` | Diff HEAD |
+| `<leader>gc` | Checkout branch |
+| `<leader>go` | Open in browser |
+| `<leader>gb` | Blame line |
+| `<leader>gB` | Blame buffer |
+| `<leader>gR` | Reset buffer |
+| `<leader>gS` | Stage buffer |
+| `<leader>gi` | GitHub issues |
+| `<leader>gp` | GitHub PRs |
+
+### Git Hunks (`<leader>gh`)
+
+| Key | Action |
+|-----|--------|
 | `<leader>ghp` | Preview hunk |
-| `<leader>ghb` | Blame current line |
-| `<leader>ghd` | Diff this file against index |
+| `<leader>ghP` | Preview hunk inline |
+| `<leader>ghs` | Stage hunk |
+| `<leader>ghu` | Undo stage hunk |
+| `<leader>ghr` | Reset hunk |
+| `]h` / `[h` | Next/Prev hunk |
 
-### TODO Comments
+### LSP (`<leader>l`)
 
-| Keys | Action |
-|---|---|
-| `]t` / `[t` | Next / previous TODO |
-| `<leader>ft` | Find TODOs (fuzzy) |
-| `<leader>xt` | TODOs in Trouble panel |
+| Key | Action |
+|-----|--------|
+| `<leader>ls` | Document symbols |
+| `<leader>lS` | Workspace symbols |
+| `<leader>li` | LSP info |
+| `<leader>lr` | LSP restart |
+| `<leader>lh` | Toggle inlay hints |
+| `<leader>lt` | References (Trouble) |
+| `<leader>lT` | Symbols (Trouble) |
+| `<leader>ll` | Lint buffer |
 
-### Treesitter
+### Markdown (`<leader>m`)
 
-| Keys | Action |
-|---|---|
-| `<C-space>` (normal mode) | Start incremental selection at cursor |
-| `<C-space>` (visual mode) | Expand selection to parent node |
-| `<BS>` (visual mode) | Shrink selection |
+| Key | Action |
+|-----|--------|
+| `<leader>mp` | Preview in browser |
+| `<leader>mr` | Toggle render in buffer |
 
-### General Editing
+### Notifications (`<leader>n`)
 
-| Keys | Action |
-|---|---|
-| `<C-s>` | Save file (works in normal, insert, visual) |
-| `<Esc>` | Clear search highlights |
-| `<leader>qq` | Quit all |
-| `<C-d>` / `<C-u>` | Half-page down/up, centered |
-| `n` / `N` | Next/prev search result, centered |
-| `J` / `K` in visual | Move selected lines down/up |
-| `<` / `>` in visual | Indent left/right (keeps selection) |
+| Key | Action |
+|-----|--------|
+| `<leader>nn` | Notification history |
+| `<leader>nd` | Dismiss all |
+
+### Search (`<leader>s`)
+
+| Key | Action |
+|-----|--------|
+| `<leader>sg` | Grep |
+| `<leader>sw` | Word under cursor |
+| `<leader>sb` | Buffer lines |
+| `<leader>sB` | Grep buffers |
+| `<leader>sh` | Help |
+| `<leader>sm` | Marks |
+| `<leader>sj` | Jumps |
+| `<leader>sk` | Keymaps |
+| `<leader>sc` | Commands |
+| `<leader>s:` | Command history |
+| `<leader>s/` | Search history |
+| `<leader>sr` | Registers |
+| `<leader>sR` | Resume last |
+| `<leader>su` | Undo history |
+
+### UI/Toggles (`<leader>u`)
+
+| Key | Action |
+|-----|--------|
+| `<leader>us` | Toggle spelling |
+| `<leader>uw` | Toggle wrap |
+| `<leader>ur` | Toggle relative numbers |
+| `<leader>ul` | Toggle line numbers |
+| `<leader>uD` | Toggle diagnostics |
+| `<leader>uc` | Toggle conceal |
+| `<leader>uT` | Toggle treesitter |
+| `<leader>ub` | Toggle background |
+| `<leader>uh` | Toggle inlay hints |
+| `<leader>ui` | Toggle indent guides |
+| `<leader>ud` | Toggle dim |
+| `<leader>uC` | Colorschemes |
+| `<leader>uz` | Zen mode |
+| `<leader>uZ` | Zoom |
+
+### Windows (`<leader>w`)
+
+| Key | Action |
+|-----|--------|
+| `<leader>wd` | Close window |
+| `<leader>ws` | Split horizontal |
+| `<leader>wv` | Split vertical |
+| `<leader>ww` | Other window |
+| `<leader>w=` | Equal size |
+| `<leader>wm` | Maximize |
+
+### Goto (`g`)
+
+| Key | Action |
+|-----|--------|
+| `gd` | Definition |
+| `gD` | Declaration |
+| `gr` | References |
+| `gi` | Implementation |
+| `gy` | Type definition |
+
+### Navigation (`[` / `]`)
+
+| Key | Action |
+|-----|--------|
+| `[d` / `]d` | Prev/Next diagnostic |
+| `[h` / `]h` | Prev/Next hunk |
+| `[b` / `]b` | Prev/Next buffer |
+| `[[` / `]]` | Prev/Next reference |
+
+### Editing
+
+| Key | Mode | Action |
+|-----|------|--------|
+| `J` / `K` | Visual | Move lines down/up |
+| `<` / `>` | Visual | Indent (stay selected) |
+| `p` | Visual | Paste (no yank) |
+| `X` | Normal | Split line |
+| `YY` | Normal | Yank block {} |
+| `n` / `N` | Normal | Next/Prev match (centered) |
+
+### Surround (mini.surround)
+
+| Key | Action |
+|-----|--------|
+| `gsa` | Add surrounding |
+| `gsd` | Delete surrounding |
+| `gsr` | Replace surrounding |
+| `gsf` | Find surrounding (right) |
+| `gsF` | Find surrounding (left) |
 
 ---
 
-## Adding More Languages
+## Language-Specific Commands
 
-When you want to add a language (say, TypeScript), three places need updates:
+### Go (`:help go.txt`)
 
-1. **`lua/plugins/treesitter.lua`** — add the parser names to `ensure_installed`:
-   ```lua
-   "javascript", "typescript", "tsx",
-   ```
+| Command | Action |
+|---------|--------|
+| `:GoBuild` | go build |
+| `:GoRun` | go run |
+| `:GoTest` | go test |
+| `:GoTestFunc` | Test function under cursor |
+| `:GoTestFile` | Test current package |
+| `:GoCoverage` | Test with coverage |
+| `:GoModTidy` | go mod tidy |
+| `:GoGet <pkg>` | go get |
+| `:GoVet` | go vet |
+| `:GoLint` | golangci-lint |
+| `:GoDoc <sym>` | go doc |
+| `:GoImpl` | Generate interface stubs |
+| `:GoIfErr` | Insert if err != nil |
+| `:GoAddTags` | Add struct tags |
+| `:GoAlt` | Switch test/source |
+| `:GoInstallBinaries` | Install all Go tools |
 
-2. **`lua/plugins/lsp.lua`** — add to mason's `ensure_installed` list and add a server entry:
-   ```lua
-   -- in mason opts.ensure_installed:
-   "typescript-language-server",
-   -- in lspconfig servers table:
-   ts_ls = {},
-   ```
+### Rust (`:help rust.txt`)
 
-3. **`lua/plugins/formatting.lua`** — add the formatter:
-   ```lua
-   -- in mason opts.ensure_installed (lsp.lua):
-   "prettierd",
-   -- in conform formatters_by_ft:
-   typescript = { "prettierd" },
-   javascript = { "prettierd" },
-   ```
+| Command | Action |
+|---------|--------|
+| `:CargoBuild` | cargo build |
+| `:CargoBuildRelease` | cargo build --release |
+| `:CargoRun` | cargo run |
+| `:CargoTest` | cargo test |
+| `:CargoTestFunc` | Test function under cursor |
+| `:CargoCheck` | cargo check |
+| `:CargoClippy` | cargo clippy |
+| `:CargoFmt` | cargo fmt |
+| `:CargoAdd <crate>` | cargo add |
+| `:CargoDoc` | cargo doc |
+| `:RustDoc <crate>` | Open docs.rs |
+| `:CargoInstallTools` | Install cargo subcommands |
 
-Restart Neovim and the tools auto-install.
+### Zig (`:help zig.txt`)
+
+| Command | Action |
+|---------|--------|
+| `:ZigBuild` | zig build |
+| `:ZigBuildRelease` | zig build -Doptimize=ReleaseFast |
+| `:ZigRun` | zig build run |
+| `:ZigRunFile` | zig run <current file> |
+| `:ZigTest` | zig build test |
+| `:ZigTestFile` | zig test <current file> |
+| `:ZigFmt` | zig fmt |
+| `:ZigDoc` | Open Zig docs |
+| `:ZigAlt` | Switch test/source |
+
+---
+
+## Language Servers
+
+Server configs live under `lsp/` and are activated via `vim.lsp.enable()` in
+`lua/plugins/lsp.lua` using Neovim's native 0.12 LSP API. All are auto-installed
+by Mason:
+
+| Language | Server |
+|----------|--------|
+| Lua | lua_ls |
+| Go | gopls |
+| Rust | rust_analyzer |
+| Zig | zls |
+| TypeScript/JavaScript | ts_ls |
+| Python | pyright |
+| Bash | bashls |
+| CSS / HTML / JSON / YAML | vscode servers |
+
+## Formatters (Conform)
+
+| Language | Formatter |
+|----------|-----------|
+| Go | goimports, gofmt |
+| Rust | rustfmt |
+| Lua | stylua |
+| JS/TS/JSON/YAML/HTML/CSS | prettier |
+| Python | isort, black |
+| Shell | shfmt |
+
+Format on save is **enabled by default**.
+
+## Linters (nvim-lint)
+
+| Language | Linter |
+|----------|--------|
+| Go | golangci-lint |
+| JS/TS | eslint_d |
+| Lua | luacheck |
+| Python | ruff, mypy |
+| Shell | shellcheck |
+| CSS/SCSS | stylelint |
+| HTML | htmlhint |
+| YAML / JSON / Markdown | yamllint / jsonlint / markdownlint |
+
+---
+
+## Colorscheme
+
+**Catppuccin Mocha** with a transparent background — the only theme installed.
+
+Because the background is transparent, the editor uses your terminal's
+background. Syntax colors come from Catppuccin + Treesitter. If a file shows no
+colors, the Treesitter parser/queries for that language are missing — see
+step 2 of the setup (the `tree-sitter` CLI).
+
+To use Catppuccin's own (non-transparent) dark background, set
+`transparent_background = false` in `lua/plugins/colorschemes.lua`.
 
 ---
 
 ## Troubleshooting
 
-**Icons render as boxes/question marks.** Your terminal isn't using a Nerd Font. Install one with `brew install --cask font-jetbrains-mono-nerd-font` and set your terminal font to "JetBrainsMono Nerd Font".
+```vim
+:checkhealth          " full diagnostic report
+:Lazy                 " plugin status / sync / clean
+:Mason                " LSP / linter / formatter installs
+:checkhealth vim.lsp  " LSP status
+```
 
-**Treesitter highlighting looks broken.** Run `:TSUpdate` and restart.
+| Symptom | Fix |
+|---------|-----|
+| Files have no syntax colors | Install the `tree-sitter` CLI (`npm install -g tree-sitter-cli`), restart |
+| `tree-sitter build` errors on startup | Same as above — the CLI is missing |
+| LSP not attaching | `:Mason` — confirm the server installed; `:checkhealth vim.lsp` |
+| Missing CLI tool | `brew install <tool>` |
 
-**LSP doesn't work in a file.** Check `:LspInfo` to see which server is attached. Then `:Mason` to verify the server is installed. If not, install it from the Mason UI (`i` on the package).
+---
 
-**`gopls` complains about workspace.** It expects a `go.mod` file. Run `go mod init <module-name>` in your project root.
-
-**Formatter not running on save.** Run `:ConformInfo` to see what conform thinks for the current buffer. The formatter binary needs to be available — usually mason installs it, but you can verify by running it from your shell.
-
-**Want to know what a keymap does?** `<leader>fk` to fuzzy-search every keymap, or `:Telescope keymaps` equivalent.
-
-**Plugin update broke something.** `:Lazy` opens the manager; press `R` on a plugin to restore it to a working version.
+Always a WIP.
