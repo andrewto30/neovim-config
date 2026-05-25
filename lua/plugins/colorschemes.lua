@@ -13,6 +13,7 @@ return {
         gitsigns = true,
         treesitter = true,
         mason = true,
+        mini = { enabled = true },
         native_lsp = { enabled = true },
         snacks = true,
         which_key = true,
